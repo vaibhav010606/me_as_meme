@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const supabase = createClient(
     process.env.SUPABASE_URL,
@@ -6,7 +6,7 @@ const supabase = createClient(
 );
 const BUCKET = process.env.SUPABASE_STORAGE_BUCKET;
 
-export const config = {
+module.exports.config = {
   api: {
     bodyParser: {
       sizeLimit: '50mb',
@@ -14,7 +14,7 @@ export const config = {
   },
 };
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
     if (req.method !== 'POST') {
         return res.status(405).json({ error: 'Method Not Allowed' });
     }
