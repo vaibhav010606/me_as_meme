@@ -236,7 +236,7 @@
 
         // Save to backend
         const dataUrl = canvas.toDataURL('image/png');
-        fetch('/upload', {
+        fetch('/api/upload', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
