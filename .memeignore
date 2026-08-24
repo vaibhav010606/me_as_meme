@@ -1,0 +1,10 @@
+# Memes excluded from the catalog. One fnmatch glob per line, matched against
+# the path relative to this folder and against the bare filename. The files
+# themselves are left alone - re-run `python analyze_memes.py` after editing.
+#
+# Examples:
+#   Harold.jpg                       drops every Harold.jpg anywhere
+#   Reactions/Horny/*                drops a whole folder
+#   *Cursed*                         drops anything with Cursed in the path
+
+Various & templates (no HD)/Reactions/Humm - Not interesting - Boring/Harold.jpg

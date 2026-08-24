@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MemeMatch — Expression to Meme Matcher</title>
+    <meta name="description" content="Real-time facial expression detection that matches your mood to the perfect meme from 1300+ templates.">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    
+    <!-- face-api.js (@vladmandic build, TensorFlow.js bundled in) served locally.
+         Pose detection loads MediaPipe Tasks from vendor/ on demand, so nothing
+         here needs the network. -->
+    <script defer src="vendor/face-api.js"></script>
+
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <!-- Background animated gradient -->
+    <div class="bg-gradient"></div>
+    <div class="bg-particles" id="particles"></div>
+
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <span class="logo-icon">🎭</span>
+            <h1>Meme<span class="accent">Match</span></h1>
+        </div>
+        <p class="tagline">Your face → the perfect meme</p>
+        <div class="header-stats" id="headerStats">
+            <span class="stat-badge"><span id="totalMemes">0</span> memes loaded</span>
+            <span class="stat-badge" id="fpsCounter">-- FPS</span>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Left Panel: Camera -->
+        <section class="panel camera-panel">
+            <div class="panel-header">
+                <h2>📷 Live Camera</h2>
+                <div class="camera-controls">
+                    <button class="btn btn-glow" id="startCameraBtn">
+                        <span class="btn-icon">▶</span> Start Camera
+                    </button>
+                    <button class="btn btn-outline" id="togglePoseBtn" disabled>
+                        <span class="btn-icon">🦴</span> Pose
+                    </button>
+                </div>
+            </div>
+            <div class="camera-container">
+                <div class="camera-placeholder" id="cameraPlaceholder">
+                    <div class="placeholder-icon">📸</div>
+                    <p>Click <strong>Start Camera</strong> to begin</p>
+                    <p class="placeholder-sub">We'll detect your expression in real-time</p>
+                </div>
+                <video id="webcam" autoplay muted playsinline></video>
+                <canvas id="overlay"></canvas>
+                <div class="expression-badge" id="expressionBadge">
+                    <span class="expression-emoji" id="expressionEmoji">😐</span>
+                    <span class="expression-text" id="expressionText">Waiting...</span>
+                    <span class="expression-confidence" id="expressionConfidence">--%</span>
+                </div>
+                <div class="pose-badge" id="poseBadge" style="display:none;">
+                    <span class="pose-icon">🦴</span>
+                    <span class="pose-text" id="poseText">No pose</span>
+                </div>
+            </div>
+
+            <!-- Expression Bars -->
+            <div class="expression-bars" id="expressionBars">
+                <div class="bar-item" data-emotion="happy">
+                    <span class="bar-label">😊 Happy</span>
+                    <div class="bar-track"><div class="bar-fill happy-bar" id="bar-happy"></div></div>
+                    <span class="bar-value" id="val-happy">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="sad">
+                    <span class="bar-label">😢 Sad</span>
+                    <div class="bar-track"><div class="bar-fill sad-bar" id="bar-sad"></div></div>
+                    <span class="bar-value" id="val-sad">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="angry">
+                    <span class="bar-label">😠 Angry</span>
+                    <div class="bar-track"><div class="bar-fill angry-bar" id="bar-angry"></div></div>
+                    <span class="bar-value" id="val-angry">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="surprised">
+                    <span class="bar-label">😲 Surprised</span>
+                    <div class="bar-track"><div class="bar-fill surprised-bar" id="bar-surprised"></div></div>
+                    <span class="bar-value" id="val-surprised">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="fearful">
+                    <span class="bar-label">😨 Fearful</span>
+                    <div class="bar-track"><div class="bar-fill fearful-bar" id="bar-fearful"></div></div>
+                    <span class="bar-value" id="val-fearful">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="disgusted">
+                    <span class="bar-label">🤢 Disgusted</span>
+                    <div class="bar-track"><div class="bar-fill disgusted-bar" id="bar-disgusted"></div></div>
+                    <span class="bar-value" id="val-disgusted">0%</span>
+                </div>
+                <div class="bar-item" data-emotion="neutral">
+                    <span class="bar-label">😐 Neutral</span>
+                    <div class="bar-track"><div class="bar-fill neutral-bar" id="bar-neutral"></div></div>
+                    <span class="bar-value" id="val-neutral">0%</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Matched Memes -->
+        <section class="panel memes-panel">
+            <div class="panel-header">
+                <h2>🔥 Matched Memes</h2>
+                <div class="match-controls">
+                    <select class="select-input" id="emotionFilter">
+                        <option value="auto">Auto (from camera)</option>
+                        <option value="happy">😊 Happy</option>
+                        <option value="sad">😢 Sad</option>
+                        <option value="angry">😠 Angry</option>
+                        <option value="surprised">😲 Surprised</option>
+                        <option value="fearful">😨 Fearful</option>
+                        <option value="disgusted">🤢 Disgusted</option>
+                        <option value="neutral">😐 Neutral</option>
+                        <option value="laughing">😂 Laughing</option>
+                        <option value="crying">😭 Crying</option>
+                        <option value="smug">😏 Smug</option>
+                        <option value="confused">🤔 Confused</option>
+                        <option value="bored">🥱 Bored</option>
+                        <option value="love">😍 Love</option>
+                        <option value="awkward">😬 Awkward</option>
+                        <option value="flexing">💪 Flexing</option>
+                        <option value="pointing">👉 Pointing</option>
+                        <option value="facepalm">🤦 Facepalm</option>
+                        <option value="mocking">😜 Mocking</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Loading Overlay -->
+            <div class="loading-overlay" id="loadingOverlay">
+                <div class="loader">
+                    <div class="loader-ring"></div>
+                    <p class="loader-text" id="loaderText">Loading models...</p>
+                </div>
+            </div>
+
+            <!-- Meme Grid -->
+            <div class="meme-grid" id="memeGrid">
+                <div class="meme-placeholder">
+                    <span class="meme-placeholder-icon">🎯</span>
+                    <p>Start your camera and make an expression!</p>
+                    <p class="meme-placeholder-sub">We'll find the perfect meme for your mood</p>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Meme Lightbox -->
+    <div class="lightbox" id="lightbox">
+        <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+        <div class="lightbox-content">
+            <button class="lightbox-close" id="lightboxClose">&times;</button>
+            <img id="lightboxImg" src="" alt="Meme">
+            <div class="lightbox-info">
+                <p class="lightbox-name" id="lightboxName"></p>
+                <div class="lightbox-tags" id="lightboxTags"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Toast -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="meme_matcher.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
