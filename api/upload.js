@@ -1,6 +1,16 @@
 const { createClient } = require('@supabase/supabase-js');
 
 const handler = async function(req, res) {
+    // ── CORS headers (Vercel sometimes needs these explicitly) ──
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+    if (req.method === 'OPTIONS') return res.status(200).end();
+
+    if (req.method !== 'POST') {
+        return res.status(405).json({ error: 'Method Not Allowed' });
+    }
+
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
         console.error("Missing Supabase Environment Variables!");
         return res.status(500).json({ error: 'Server misconfiguration: Missing Supabase keys.' });
@@ -11,18 +21,15 @@ const handler = async function(req, res) {
         process.env.SUPABASE_SERVICE_ROLE_KEY
     );
     const BUCKET = process.env.SUPABASE_STORAGE_BUCKET || 'memory-photos';
-    if (req.method !== 'POST') {
-        return res.status(405).json({ error: 'Method Not Allowed' });
-    }
 
     try {
-        const { imageBase64 } = req.body;
+        const { imageBase64 } = req.body || {};
         if (!imageBase64) {
             return res.status(400).json({ error: 'No image data provided' });
         }
 
         // Remove the data URI header "data:image/png;base64,"
-        const base64Data = imageBase64.replace(/^data:image\/png;base64,/, "");
+        const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const buffer = Buffer.from(base64Data, 'base64');
         
         const filename = `MemeMatch_${Date.now()}.png`;
@@ -38,7 +45,10 @@ const handler = async function(req, res) {
 
         if (error) {
             console.error("Supabase upload error:", error);
-            return res.status(500).json({ error: 'Failed to upload to Supabase' });
+            return res.status(500).json({ 
+                error: 'Failed to upload to Supabase', 
+                detail: error.message || JSON.stringify(error) 
+            });
         }
 
         // Get the public URL for the uploaded file
@@ -52,16 +62,17 @@ const handler = async function(req, res) {
         
     } catch (err) {
         console.error("Upload error:", err);
-        res.status(500).json({ error: 'Internal server error' });
+        res.status(500).json({ error: 'Internal server error', detail: err.message });
     }
-}
-
-handler.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
 };
 
+// Vercel serverless config — raise body limit for base64 image payloads
 module.exports = handler;
+module.exports.config = {
+    api: {
+        bodyParser: {
+            sizeLimit: '50mb',
+        },
+    },
+};
+

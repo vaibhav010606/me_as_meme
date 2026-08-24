@@ -256,18 +256,24 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ imageBase64: dataUrl }),
         })
-        .then(r => r.json())
+        .then(r => {
+            if (!r.ok) {
+                return r.text().then(t => { throw new Error(`HTTP ${r.status}: ${t}`); });
+            }
+            return r.json();
+        })
         .then(data => {
             if (data.success) {
                 console.log('Snapshot saved:', data.url);
                 showToast('Captured! 📸', 'info');
             } else {
-                showToast('Failed to save snapshot', 'error');
+                console.error('Upload failed:', data);
+                showToast('Failed to save: ' + (data.error || 'unknown'), 'error');
             }
         })
         .catch(err => {
             console.error('Upload error:', err);
-            showToast('Error saving snapshot', 'error');
+            showToast('Error saving: ' + err.message, 'error');
         });
     }
 
