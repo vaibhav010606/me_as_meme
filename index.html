@@ -1,180 +1,187 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MemeMatch — Expression to Meme Matcher</title>
-    <meta name="description" content="Real-time facial expression detection that matches your mood to the perfect meme from 1300+ templates.">
-    
-    <!-- Google Fonts -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-    
-    <!-- face-api.js (@vladmandic build, TensorFlow.js bundled in) served locally.
-         Pose detection loads MediaPipe Tasks from vendor/ on demand, so nothing
-         here needs the network. -->
-    <script defer src="vendor/face-api.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MemeMatch - Max Pop-Culture</title>
+  
+  <!-- Tailwind & Icons & Fonts -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://code.iconify.design/iconify-icon/1.0.7/iconify-icon.min.js"></script>
+  <link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,700,900&display=swap" rel="stylesheet">
+  
+  <!-- Custom CSS for animations and components -->
+  <link rel="stylesheet" href="index.css">
 
-    <link rel="stylesheet" href="index.css">
+  <!-- face-api.js served locally -->
+  <script defer src="vendor/face-api.js"></script>
 </head>
 <body>
-    <!-- Background animated gradient -->
-    <div class="bg-gradient"></div>
-    <div class="bg-particles" id="particles"></div>
-
-    <!-- Header -->
-    <header class="header">
-        <div class="logo">
-            <span class="logo-icon">🎭</span>
-            <h1>Meme<span class="accent">Match</span></h1>
-        </div>
-        <p class="tagline">Your face → the perfect meme</p>
-        <div class="header-stats" id="headerStats">
-            <span class="stat-badge"><span id="totalMemes">0</span> memes loaded</span>
-            <span class="stat-badge" id="fpsCounter">-- FPS</span>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="main-content">
-        <!-- Left Panel: Camera -->
-        <section class="panel camera-panel">
-            <div class="panel-header">
-                <h2>📷 Live Camera</h2>
-                <div class="camera-controls">
-                    <button class="btn btn-glow" id="startCameraBtn">
-                        <span class="btn-icon">▶</span> Start Camera
-                    </button>
-                    <button class="btn btn-outline" id="togglePoseBtn" disabled>
-                        <span class="btn-icon">🦴</span> Pose
-                    </button>
-                </div>
-            </div>
-            <div class="camera-container">
-                <div class="camera-placeholder" id="cameraPlaceholder">
-                    <div class="placeholder-icon">📸</div>
-                    <p>Click <strong>Start Camera</strong> to begin</p>
-                    <p class="placeholder-sub">We'll detect your expression in real-time</p>
-                </div>
-                <video id="webcam" autoplay muted playsinline></video>
-                <canvas id="overlay"></canvas>
-                <div class="expression-badge" id="expressionBadge">
-                    <span class="expression-emoji" id="expressionEmoji">😐</span>
-                    <span class="expression-text" id="expressionText">Waiting...</span>
-                    <span class="expression-confidence" id="expressionConfidence">--%</span>
-                </div>
-                <div class="pose-badge" id="poseBadge" style="display:none;">
-                    <span class="pose-icon">🦴</span>
-                    <span class="pose-text" id="poseText">No pose</span>
-                </div>
-            </div>
-
-            <!-- Expression Bars -->
-            <div class="expression-bars" id="expressionBars">
-                <div class="bar-item" data-emotion="happy">
-                    <span class="bar-label">😊 Happy</span>
-                    <div class="bar-track"><div class="bar-fill happy-bar" id="bar-happy"></div></div>
-                    <span class="bar-value" id="val-happy">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="sad">
-                    <span class="bar-label">😢 Sad</span>
-                    <div class="bar-track"><div class="bar-fill sad-bar" id="bar-sad"></div></div>
-                    <span class="bar-value" id="val-sad">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="angry">
-                    <span class="bar-label">😠 Angry</span>
-                    <div class="bar-track"><div class="bar-fill angry-bar" id="bar-angry"></div></div>
-                    <span class="bar-value" id="val-angry">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="surprised">
-                    <span class="bar-label">😲 Surprised</span>
-                    <div class="bar-track"><div class="bar-fill surprised-bar" id="bar-surprised"></div></div>
-                    <span class="bar-value" id="val-surprised">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="fearful">
-                    <span class="bar-label">😨 Fearful</span>
-                    <div class="bar-track"><div class="bar-fill fearful-bar" id="bar-fearful"></div></div>
-                    <span class="bar-value" id="val-fearful">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="disgusted">
-                    <span class="bar-label">🤢 Disgusted</span>
-                    <div class="bar-track"><div class="bar-fill disgusted-bar" id="bar-disgusted"></div></div>
-                    <span class="bar-value" id="val-disgusted">0%</span>
-                </div>
-                <div class="bar-item" data-emotion="neutral">
-                    <span class="bar-label">😐 Neutral</span>
-                    <div class="bar-track"><div class="bar-fill neutral-bar" id="bar-neutral"></div></div>
-                    <span class="bar-value" id="val-neutral">0%</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Right Panel: Matched Memes -->
-        <section class="panel memes-panel">
-            <div class="panel-header">
-                <h2>🔥 Matched Memes</h2>
-                <div class="match-controls">
-                    <select class="select-input" id="emotionFilter">
-                        <option value="auto">Auto (from camera)</option>
-                        <option value="happy">😊 Happy</option>
-                        <option value="sad">😢 Sad</option>
-                        <option value="angry">😠 Angry</option>
-                        <option value="surprised">😲 Surprised</option>
-                        <option value="fearful">😨 Fearful</option>
-                        <option value="disgusted">🤢 Disgusted</option>
-                        <option value="neutral">😐 Neutral</option>
-                        <option value="laughing">😂 Laughing</option>
-                        <option value="crying">😭 Crying</option>
-                        <option value="smug">😏 Smug</option>
-                        <option value="confused">🤔 Confused</option>
-                        <option value="bored">🥱 Bored</option>
-                        <option value="love">😍 Love</option>
-                        <option value="awkward">😬 Awkward</option>
-                        <option value="flexing">💪 Flexing</option>
-                        <option value="pointing">👉 Pointing</option>
-                        <option value="facepalm">🤦 Facepalm</option>
-                        <option value="mocking">😜 Mocking</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- Loading Overlay -->
-            <div class="loading-overlay" id="loadingOverlay">
-                <div class="loader">
-                    <div class="loader-ring"></div>
-                    <p class="loader-text" id="loaderText">Loading models...</p>
-                </div>
-            </div>
-
-            <!-- Meme Grid -->
-            <div class="meme-grid" id="memeGrid">
-                <div class="meme-placeholder">
-                    <span class="meme-placeholder-icon">🎯</span>
-                    <p>Start your camera and make an expression!</p>
-                    <p class="meme-placeholder-sub">We'll find the perfect meme for your mood</p>
-                </div>
-            </div>
-        </section>
-    </main>
-
-    <!-- Meme Lightbox -->
-    <div class="lightbox" id="lightbox">
-        <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
-        <div class="lightbox-content">
-            <button class="lightbox-close" id="lightboxClose">&times;</button>
-            <img id="lightboxImg" src="" alt="Meme">
-            <div class="lightbox-info">
-                <p class="lightbox-name" id="lightboxName"></p>
-                <div class="lightbox-tags" id="lightboxTags"></div>
-            </div>
-        </div>
+  <div class="min-h-screen bg-white text-gray-900 flex flex-col items-center p-4 md:p-8 relative overflow-hidden" id="particles">
+    
+    <!-- Max Pop-Culture Emoji Background Layer -->
+    <div class="absolute inset-0 pointer-events-none z-0 overflow-hidden" aria-hidden="true">
+      <!-- Top Section -->
+      <span class="absolute top-5 left-5 text-7xl opacity-70 emoji-float" style="--rot: -15deg">🎭</span>
+      <span class="absolute top-16 left-[15%] text-6xl opacity-60 emoji-bounce" style="--rot: 10deg">🎬</span>
+      <span class="absolute top-8 left-[35%] text-8xl opacity-50 emoji-float" style="--rot: 25deg">🎉</span>
+      <span class="absolute top-10 right-[30%] text-7xl opacity-80 emoji-bounce" style="--rot: -20deg">✨</span>
+      <span class="absolute top-6 right-10 text-8xl opacity-70 emoji-float" style="--rot: 20deg">🍿</span>
+      <span class="absolute top-32 right-[12%] text-6xl opacity-60 emoji-spin">💫</span>
+      <span class="absolute top-28 right-[45%] text-7xl opacity-50 emoji-float" style="--rot: 5deg">💥</span>
+      
+      <!-- Middle Section -->
+      <span class="absolute top-[35%] left-[5%] text-8xl opacity-60 emoji-float" style="--rot: -10deg">🎸</span>
+      <span class="absolute top-[45%] left-[22%] text-7xl opacity-70 emoji-bounce" style="--rot: 15deg">😂</span>
+      <span class="absolute top-[50%] left-[40%] text-6xl opacity-50 emoji-spin">🎲</span>
+      <span class="absolute top-[38%] right-[25%] text-8xl opacity-60 emoji-float" style="--rot: -25deg">🎯</span>
+      <span class="absolute top-[55%] right-[8%] text-7xl opacity-80 emoji-spin">🌟</span>
+      <span class="absolute top-[48%] right-[42%] text-6xl opacity-70 emoji-bounce" style="--rot: 12deg">💎</span>
+      
+      <!-- Bottom Section -->
+      <span class="absolute bottom-24 left-8 text-8xl opacity-70 emoji-float" style="--rot: 15deg">🎪</span>
+      <span class="absolute bottom-36 left-[25%] text-7xl opacity-80 emoji-bounce" style="--rot: -15deg">🎤</span>
+      <span class="absolute bottom-[20%] left-[45%] text-6xl opacity-60 emoji-float" style="--rot: -5deg">🏆</span>
+      <span class="absolute bottom-16 right-20 text-8xl opacity-70 emoji-float" style="--rot: 30deg">🎨</span>
+      <span class="absolute bottom-40 right-[28%] text-7xl opacity-50 emoji-bounce" style="--rot: -12deg">🚀</span>
+      <span class="absolute bottom-[12%] right-[48%] text-8xl opacity-60 emoji-spin">⭐</span>
+      <span class="absolute bottom-8 left-[38%] text-7xl opacity-80 emoji-float" style="--rot: 22deg">🎵</span>
+      <span class="absolute bottom-12 right-[10%] text-6xl opacity-70 emoji-bounce" style="--rot: -18deg">🍕</span>
+      <span class="absolute top-[75%] left-[12%] text-8xl opacity-50 emoji-spin">📱</span>
+      <span class="absolute top-[80%] right-[35%] text-7xl opacity-60 emoji-float" style="--rot: 10deg">👑</span>
+      <span class="absolute top-[25%] left-[55%] text-6xl opacity-70 emoji-bounce" style="--rot: -15deg">🎁</span>
     </div>
 
-    <!-- Status Toast -->
-    <div class="toast-container" id="toastContainer"></div>
+    <!-- Main Content Wrapper -->
+    <div class="relative z-10 w-full flex flex-col items-center">
+      <header class="w-full max-w-6xl flex flex-col items-center justify-center mb-8 md:mb-12 space-y-3" id="headerStats">
+        <div class="flex items-center space-x-3 bg-white/90 backdrop-blur-md px-6 py-2 rounded-full border-4 border-[#333333] shadow-[4px_4px_0_#333333]">
+          <span class="text-4xl">🎭</span>
+          <h1 class="text-3xl md:text-5xl font-black tracking-tight text-gray-900">
+            MemeMatch
+          </h1>
+        </div>
+        <p class="text-gray-600 font-bold text-xs md:text-sm uppercase tracking-widest bg-white/50 backdrop-blur-sm px-4 py-1 rounded-full">
+          Your face → the perfect meme
+        </p>
+        <div class="flex flex-wrap justify-center gap-2 md:gap-4 mt-2 text-xs md:text-sm font-bold bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full border-4 border-[#333333] shadow-[4px_4px_0_#333333]">
+          <span class="px-4 py-1.5 rounded-full border-2 border-[#FF6B6B] text-[#FF6B6B] bg-white shadow-sm"><span id="totalMemes">0</span> MEMES</span>
+          <span class="px-4 py-1.5 rounded-full border-2 border-[#00CEC9] text-[#00A8A5] bg-white shadow-sm" id="fpsCounter">-- FPS</span>
+        </div>
+      </header>
 
-    <script src="meme_matcher.js"></script>
-    <script src="app.js"></script>
+      <main class="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- Left: Camera -->
+        <section class="glass-light rounded-3xl p-5 md:p-7 flex flex-col space-y-4 md:space-y-6">
+          <div class="flex justify-between items-center flex-wrap gap-3">
+            <h2 class="text-lg md:text-xl font-bold flex items-center gap-2 text-gray-800">
+              <iconify-icon icon="lucide:camera" class="text-[#FF6B6B] text-2xl"></iconify-icon>
+              Live Camera
+            </h2>
+            <div class="flex gap-2 md:gap-3 w-full md:w-auto">
+              <button id="startCameraBtn" class="flex-1 md:flex-none px-4 md:px-5 py-2 bg-[#FF6B6B] text-white text-sm font-black rounded-xl hover:bg-[#ff5252] transition-colors flex items-center justify-center gap-2 shadow-[4px_4px_0_#333333] border-2 border-[#333333] active:translate-y-1 active:shadow-none">
+                <iconify-icon icon="lucide:play"></iconify-icon> Start Camera
+              </button>
+            </div>
+          </div>
+
+          <div class="relative w-full aspect-[4/3] md:aspect-auto md:h-[400px] rounded-2xl bg-gray-100 border-[6px] border-[#333333] shadow-[6px_6px_0_#333333]">
+            
+            <div id="cameraPlaceholder" class="absolute inset-0 flex flex-col items-center justify-center gap-3 z-20 bg-gray-50 p-4 text-center rounded-xl">
+              <span class="text-5xl">📸</span>
+              <p class="font-bold text-[#333333]">Click Start Camera to begin</p>
+              <p class="text-sm text-gray-500 font-medium">We'll detect your expression in real-time</p>
+            </div>
+
+            <video id="webcam" autoplay muted playsinline class="absolute inset-0 w-full h-full object-cover rounded-xl z-10" style="display: none; transform: scaleX(-1);"></video>
+            <canvas id="overlay" class="absolute inset-0 w-full h-full pointer-events-none rounded-xl z-30" style="transform: scaleX(-1);"></canvas>
+
+            <div id="expressionBadge" class="hidden absolute top-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl flex items-center gap-2 border-4 border-[#333333] shadow-[4px_4px_0_#333333]">
+              <span id="expressionEmoji" class="text-lg md:text-xl">😐</span>
+              <span id="expressionText" class="text-xs md:text-sm font-bold text-gray-800 capitalize">Neutral</span>
+              <span id="expressionConfidence" class="text-xs md:text-sm text-[#00A8A5] font-black">--%</span>
+            </div>
+            
+            <div id="poseBadge" class="hidden absolute bottom-4 left-4 bg-white/90 backdrop-blur-md px-3 py-1.5 md:px-4 md:py-2 rounded-xl flex items-center gap-2 border-4 border-[#333333] shadow-[4px_4px_0_#333333]">
+              <iconify-icon icon="lucide:bone" class="text-[#FF6B6B] text-base md:text-lg"></iconify-icon>
+              <span id="poseText" class="text-xs md:text-sm font-bold text-gray-600 capitalize">No pose</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Right: Memes -->
+        <section class="glass-light rounded-3xl p-5 md:p-7 flex flex-col space-y-4 md:space-y-6 relative">
+          <div class="flex justify-between items-center">
+            <h2 class="text-lg md:text-xl font-bold flex items-center gap-2 text-gray-800">
+              <span class="text-2xl">🔥</span>
+              Matched Memes
+            </h2>
+            <div class="relative">
+              <select id="emotionFilter" class="appearance-none pl-4 pr-10 py-2 bg-white border-2 border-[#00CEC9] text-[#00A8A5] rounded-xl text-sm font-black flex items-center gap-2 hover:bg-[#00CEC9]/10 transition-colors shadow-md outline-none cursor-pointer">
+                <option value="auto">Auto (camera)</option>
+                <option value="happy">Happy</option>
+                <option value="sad">Sad</option>
+                <option value="angry">Angry</option>
+                <option value="surprised">Surprised</option>
+                <option value="fearful">Fearful</option>
+                <option value="disgusted">Disgusted</option>
+                <option value="neutral">Neutral</option>
+                <option value="laughing">Laughing</option>
+                <option value="crying">Crying</option>
+                <option value="smug">Smug</option>
+                <option value="confused">Confused</option>
+                <option value="bored">Bored</option>
+                <option value="love">Love</option>
+                <option value="awkward">Awkward</option>
+                <option value="flexing">Flexing</option>
+                <option value="pointing">Pointing</option>
+                <option value="facepalm">Facepalm</option>
+                <option value="mocking">Mocking</option>
+              </select>
+              <iconify-icon icon="lucide:chevron-down" class="absolute right-3 top-1/2 -translate-y-1/2 text-[#00A8A5] pointer-events-none"></iconify-icon>
+            </div>
+          </div>
+
+          <!-- Loading Overlay -->
+          <div class="loading-overlay" id="loadingOverlay">
+            <div class="loader">
+                <div class="loader-ring"></div>
+                <p class="loader-text" id="loaderText">Loading models...</p>
+            </div>
+          </div>
+
+          <div id="memeGrid" class="flex-1 flex flex-col items-center justify-center space-y-6">
+            <!-- Meme placeholder -->
+            <div class="text-center p-8">
+              <span class="text-5xl block mb-4">🎯</span>
+              <p class="font-bold text-[#333333]">Start your camera and make an expression!</p>
+              <p class="text-sm text-gray-500 font-medium mt-2">We'll find the perfect meme for your mood</p>
+            </div>
+          </div>
+        </section>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- Meme Lightbox -->
+  <div class="lightbox" id="lightbox">
+      <div class="lightbox-backdrop" id="lightboxBackdrop"></div>
+      <div class="lightbox-content flex flex-col items-center relative">
+          <button class="lightbox-close" id="lightboxClose">&times;</button>
+          <img id="lightboxImg" src="" alt="Meme">
+          <div class="lightbox-info">
+              <p class="lightbox-name" id="lightboxName"></p>
+              <div class="lightbox-tags" id="lightboxTags"></div>
+          </div>
+      </div>
+  </div>
+
+  <!-- Status Toast Container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <script src="meme_matcher.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

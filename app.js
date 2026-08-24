@@ -28,6 +28,7 @@
     const overlay = $('overlay');
     const startBtn = $('startCameraBtn');
     const poseBtn = $('togglePoseBtn');
+    const captureBtn = $('captureBtn');
     const cameraPlaceholder = $('cameraPlaceholder');
     const expressionBadge = $('expressionBadge');
     const expressionEmoji = $('expressionEmoji');
@@ -59,7 +60,6 @@
         createParticles();
         await loadMemeCatalog();
         setupEventListeners();
-        showToast('Ready! Click "Start Camera" to begin.', 'info');
     }
 
     // ── Particles ─────────────────────────────────────────────
@@ -90,7 +90,8 @@
     // ── Event Listeners ───────────────────────────────────────
     function setupEventListeners() {
         startBtn.addEventListener('click', toggleCamera);
-        poseBtn.addEventListener('click', togglePose);
+        if (poseBtn) poseBtn.addEventListener('click', togglePose);
+        if (captureBtn) captureBtn.addEventListener('click', takeSnapshot);
         emotionFilter.addEventListener('change', onFilterChange);
         lightboxClose.addEventListener('click', closeLightbox);
         lightboxBackdrop.addEventListener('click', closeLightbox);
@@ -110,7 +111,7 @@
 
     async function startCamera() {
         startBtn.disabled = true;
-        startBtn.innerHTML = '<span class="btn-icon">⏳</span> Starting...';
+        startBtn.innerHTML = '<iconify-icon icon="lucide:loader-2" class="animate-spin"></iconify-icon> Starting...';
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({
@@ -121,6 +122,9 @@
                 },
             });
 
+            webcam.style.display = 'block';
+            cameraPlaceholder.style.display = 'none';
+
             webcam.srcObject = stream;
             await webcam.play();
 
@@ -128,15 +132,12 @@
             overlay.width = webcam.videoWidth;
             overlay.height = webcam.videoHeight;
 
-            webcam.classList.add('active');
-            cameraPlaceholder.classList.add('hidden');
             state.cameraActive = true;
 
-            startBtn.innerHTML = '<span class="btn-icon">⏹</span> Stop Camera';
+            startBtn.innerHTML = '<div class="w-2.5 h-2.5 bg-white rounded-sm"></div> Stop Camera';
             startBtn.disabled = false;
-            poseBtn.disabled = false;
-
-            showToast('Camera started! Loading face detection...', 'success');
+            if (poseBtn) poseBtn.disabled = false;
+            if (captureBtn) captureBtn.disabled = false;
 
             // Load face-api models
             await loadFaceModels();
@@ -153,7 +154,7 @@
         } catch (err) {
             console.error('Camera error:', err);
             showToast('Camera access denied. Please allow camera permissions.', 'error');
-            startBtn.innerHTML = '<span class="btn-icon">▶</span> Start Camera';
+            startBtn.innerHTML = '<iconify-icon icon="lucide:play"></iconify-icon> Start Camera';
             startBtn.disabled = false;
         }
     }
@@ -172,8 +173,8 @@
             stream.getTracks().forEach(t => t.stop());
         }
         webcam.srcObject = null;
-        webcam.classList.remove('active');
-        cameraPlaceholder.classList.remove('hidden');
+        webcam.style.display = 'none';
+        cameraPlaceholder.style.display = 'flex';
 
         expressionBadge.classList.remove('visible');
         poseBadge.classList.remove('visible');
@@ -182,10 +183,78 @@
         const ctx = overlay.getContext('2d');
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-        startBtn.innerHTML = '<span class="btn-icon">▶</span> Start Camera';
-        poseBtn.disabled = true;
+        startBtn.innerHTML = '<iconify-icon icon="lucide:play"></iconify-icon> Start Camera';
+        if (poseBtn) poseBtn.disabled = true;
+        if (captureBtn) captureBtn.disabled = true;
         state.poseEnabled = false;
-        poseBtn.classList.remove('active');
+        if (poseBtn) poseBtn.classList.remove('active');
+    }
+
+    // ── Snapshot ──────────────────────────────────────────────
+    function takeSnapshot() {
+        if (!state.cameraActive || !lastDetectedExpressions) {
+            showToast('Start the camera and make an expression first!', 'error');
+            return;
+        }
+        
+        const memeImg = memeGrid.querySelector('img');
+        if (!memeImg) {
+            showToast('No meme matched yet!', 'error');
+            return;
+        }
+
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+
+        const cw = webcam.videoWidth;
+        const ch = webcam.videoHeight;
+        
+        // Calculate meme dimensions to match camera height
+        const memeRatio = memeImg.naturalWidth / memeImg.naturalHeight;
+        const memeW = ch * memeRatio;
+        
+        // Add 20px padding between them and 40px around
+        const padding = 20;
+        canvas.width = cw + memeW + (padding * 3);
+        canvas.height = ch + (padding * 2);
+
+        // Fill background with light gray (matching our theme)
+        ctx.fillStyle = '#f3f4f6';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // 1. Draw Webcam (flipped)
+        ctx.save();
+        ctx.translate(padding + cw, padding); // move to right edge of webcam spot
+        ctx.scale(-1, 1);
+        ctx.drawImage(webcam, 0, 0, cw, ch);
+        ctx.restore();
+
+        // Visual debug overlays disabled per user request
+
+        // 3. Draw Meme Image (normal)
+        ctx.drawImage(memeImg, padding * 2 + cw, padding, memeW, ch);
+
+        // Save to backend
+        const dataUrl = canvas.toDataURL('image/png');
+        fetch('/upload', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ imageBase64: dataUrl })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Snapshot successfully saved to Supabase:', data.url);
+            } else {
+                showToast('Failed to save snapshot', 'error');
+            }
+        })
+        .catch(err => {
+            console.error('Error uploading snapshot:', err);
+            showToast('Error saving snapshot', 'error');
+        });
     }
 
     // ── Face-API Model Loading ────────────────────────────────
@@ -206,7 +275,6 @@
 
             state.modelsLoaded = true;
             hideLoading();
-            showToast('Face detection models loaded!', 'success');
         } catch (err) {
             console.error('Model loading error:', err);
             hideLoading();
@@ -234,8 +302,6 @@
 
             state.poseModelLoaded = true;
             if (!silent) hideLoading();
-            showToast(silent ? 'Pose detection on — try pointing or flexing.'
-                             : 'Pose detection model loaded!', 'success');
         } catch (err) {
             console.error('Pose model error:', err);
             if (!silent) hideLoading();
@@ -246,7 +312,7 @@
     // ── Pose Toggle ───────────────────────────────────────────
     async function enablePose(silent = false) {
         state.poseEnabled = true;
-        poseBtn.classList.add('active');
+        if (poseBtn) poseBtn.classList.add('active');
         poseBadge.style.display = '';
         poseBadge.classList.add('visible');
 
@@ -256,7 +322,7 @@
 
     function disablePose() {
         state.poseEnabled = false;
-        poseBtn.classList.remove('active');
+        if (poseBtn) poseBtn.classList.remove('active');
         poseBadge.classList.remove('visible');
         lastGesture = 'unknown';
     }
@@ -338,29 +404,7 @@
         const ctx = overlay.getContext('2d');
         ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-        if (!detections || detections.length === 0) return;
-
-        for (const det of detections) {
-            const box = det.detection.box;
-
-            // Draw face bounding box
-            ctx.strokeStyle = '#7c5cfc';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([6, 4]);
-            ctx.strokeRect(box.x, box.y, box.width, box.height);
-            ctx.setLineDash([]);
-
-            // Draw facial landmarks with dots
-            if (det.landmarks) {
-                const positions = det.landmarks.positions;
-                ctx.fillStyle = 'rgba(224, 64, 251, 0.5)';
-                for (const point of positions) {
-                    ctx.beginPath();
-                    ctx.arc(point.x, point.y, 1.5, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-        }
+        // Visual debug overlays disabled per user request
     }
 
     // ── MediaPipe → MoveNet Keypoints ─────────────────────────
@@ -393,43 +437,7 @@
     function drawPose(keypoints) {
         const ctx = overlay.getContext('2d');
 
-        // Skeleton connections
-        const connections = [
-            [5, 7], [7, 9],     // left arm
-            [6, 8], [8, 10],    // right arm
-            [5, 6],             // shoulders
-            [5, 11], [6, 12],   // torso
-            [11, 12],           // hips
-            [11, 13], [13, 15], // left leg
-            [12, 14], [14, 16], // right leg
-        ];
-
-        // Draw connections
-        ctx.strokeStyle = 'rgba(124, 92, 252, 0.5)';
-        ctx.lineWidth = 2;
-        for (const [i, j] of connections) {
-            if (keypoints[i].score > 0.3 && keypoints[j].score > 0.3) {
-                ctx.beginPath();
-                ctx.moveTo(keypoints[i].x, keypoints[i].y);
-                ctx.lineTo(keypoints[j].x, keypoints[j].y);
-                ctx.stroke();
-            }
-        }
-
-        // Draw keypoints
-        for (const kp of keypoints) {
-            if (kp.score > 0.3) {
-                ctx.fillStyle = 'rgba(255, 96, 144, 0.8)';
-                ctx.beginPath();
-                ctx.arc(kp.x, kp.y, 4, 0, Math.PI * 2);
-                ctx.fill();
-
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(kp.x, kp.y, 2, 0, Math.PI * 2);
-                ctx.fill();
-            }
-        }
+        // Visual debug overlays disabled per user request
     }
 
     // ── Update Expression UI ──────────────────────────────────
@@ -506,6 +514,16 @@
             );
 
             renderMemeGrid(results);
+
+            // Automatically capture the snapshot once the new image loads
+            const img = memeGrid.querySelector('img');
+            if (img) {
+                if (img.complete) {
+                    setTimeout(takeSnapshot, 100);
+                } else {
+                    img.addEventListener('load', () => setTimeout(takeSnapshot, 100));
+                }
+            }
         }, 3500); // Update every 3.5s for a calm, stable experience
     }
 
@@ -525,10 +543,10 @@
     function renderMemeGrid(results) {
         if (!results || results.length === 0) {
             memeGrid.innerHTML = `
-                <div class="meme-placeholder">
-                    <span class="meme-placeholder-icon">🤷</span>
-                    <p>No matching memes found</p>
-                    <p class="meme-placeholder-sub">Try a different expression!</p>
+                <div class="text-center p-8">
+                    <span class="text-5xl block mb-4">🤷</span>
+                    <p class="font-bold text-[#333333]">No matching memes found</p>
+                    <p class="text-sm text-gray-500 font-medium mt-2">Try a different expression!</p>
                 </div>
             `;
             return;
@@ -541,20 +559,21 @@
         const score = Math.round(r.score * 100);
         const tags = [r.category, ...r.meme.emotions.filter(e => e !== r.category)].slice(0, 3);
         const emotionTags = tags.map(e =>
-            `<span class="single-meme-tag">${MemeMatcher.EMOTION_EMOJIS[e] || ''} ${e}</span>`
+            `<span class="px-3 py-1.5 bg-white border-2 border-gray-200 rounded-full text-xs md:text-sm font-bold text-gray-600 flex items-center gap-1.5 shadow-sm whitespace-nowrap">
+                <span class="text-base md:text-lg">${MemeMatcher.EMOTION_EMOJIS[e] || ''}</span> ${e}
+            </span>`
         ).join('');
 
         memeGrid.innerHTML = `
-            <div class="single-meme-display" data-path="${encodeURIComponent(r.meme.path)}">
-                <div class="single-meme-img-wrap">
+            <div class="single-meme-display w-full flex-1 flex flex-col items-center justify-center cursor-pointer group" data-path="${encodeURIComponent(r.meme.path)}">
+                <div class="relative w-full rounded-2xl bg-gray-100 overflow-hidden border-[6px] border-[#333333] shadow-[6px_6px_0_#333333] rotate-1 group-hover:rotate-0 transition-transform duration-300 flex items-center justify-center">
+                    <div class="absolute top-3 right-3 md:top-4 md:right-4 bg-[#FF6B6B] text-white px-2 py-1 md:px-3 md:py-1.5 rounded-lg text-xs md:text-sm font-black z-10 shadow-lg border-2 border-white rotate-6">
+                        ${score}% MATCH
+                    </div>
                     <img src="${encodeURI(r.meme.path)}"
+                         class="w-full h-auto max-h-[50vh] md:max-h-[400px] object-contain"
                          alt="${escapeHtml(name)}"
                          onerror="this.src='data:image/svg+xml,<svg xmlns=http://www.w3.org/2000/svg/>'">
-                    <div class="single-meme-score">${score}% match</div>
-                </div>
-                <div class="single-meme-info">
-                    <p class="single-meme-name">${escapeHtml(name)}</p>
-                    <div class="single-meme-tags">${emotionTags}</div>
                 </div>
             </div>
         `;
