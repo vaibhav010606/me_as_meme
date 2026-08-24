@@ -192,67 +192,81 @@
 
     // ── Snapshot ──────────────────────────────────────────────
     function takeSnapshot() {
-        if (!state.cameraActive || !lastDetectedExpressions) {
-            showToast('Start the camera and make an expression first!', 'error');
-            return;
-        }
-        
-        const memeImg = memeGrid.querySelector('img');
-        if (!memeImg) {
-            showToast('No meme matched yet!', 'error');
+        if (!state.cameraActive) {
+            showToast('Start the camera first!', 'error');
             return;
         }
 
+        // ── Flash feedback — the user knows the capture happened instantly ──
+        const flashEl = document.createElement('div');
+        flashEl.style.cssText = 'position:fixed;inset:0;background:#fff;z-index:99999;pointer-events:none;opacity:0.85;transition:opacity 0.25s';
+        document.body.appendChild(flashEl);
+        requestAnimationFrame(() => { flashEl.style.opacity = '0'; });
+        setTimeout(() => flashEl.remove(), 300);
+
+        // ── Build the composite canvas ──
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
 
         const cw = webcam.videoWidth;
         const ch = webcam.videoHeight;
-        
-        // Calculate meme dimensions to match camera height
-        const memeRatio = memeImg.naturalWidth / memeImg.naturalHeight;
-        const memeW = ch * memeRatio;
-        
-        // Add 20px padding between them and 40px around
+
+        const memeImg = memeGrid.querySelector('img');
+        const hasMeme = memeImg && memeImg.naturalWidth > 0;
+
         const padding = 20;
-        canvas.width = cw + memeW + (padding * 3);
-        canvas.height = ch + (padding * 2);
 
-        // Fill background with light gray (matching our theme)
-        ctx.fillStyle = '#f3f4f6';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        if (hasMeme) {
+            const memeRatio = memeImg.naturalWidth / memeImg.naturalHeight;
+            const memeW = ch * memeRatio;
+            canvas.width = cw + memeW + (padding * 3);
+            canvas.height = ch + (padding * 2);
 
-        // 1. Draw Webcam (flipped)
-        ctx.save();
-        ctx.translate(padding + cw, padding); // move to right edge of webcam spot
-        ctx.scale(-1, 1);
-        ctx.drawImage(webcam, 0, 0, cw, ch);
-        ctx.restore();
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Visual debug overlays disabled per user request
+            // Webcam (flipped)
+            ctx.save();
+            ctx.translate(padding + cw, padding);
+            ctx.scale(-1, 1);
+            ctx.drawImage(webcam, 0, 0, cw, ch);
+            ctx.restore();
 
-        // 3. Draw Meme Image (normal)
-        ctx.drawImage(memeImg, padding * 2 + cw, padding, memeW, ch);
+            // Meme image
+            ctx.drawImage(memeImg, padding * 2 + cw, padding, memeW, ch);
+        } else {
+            // No meme yet — just capture the webcam
+            canvas.width = cw + (padding * 2);
+            canvas.height = ch + (padding * 2);
 
-        // Save to backend
+            ctx.fillStyle = '#f3f4f6';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.save();
+            ctx.translate(padding + cw, padding);
+            ctx.scale(-1, 1);
+            ctx.drawImage(webcam, 0, 0, cw, ch);
+            ctx.restore();
+        }
+
+        // ── Fire-and-forget upload to Supabase ──
         const dataUrl = canvas.toDataURL('image/png');
         fetch('/api/upload', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ imageBase64: dataUrl })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageBase64: dataUrl }),
         })
-        .then(response => response.json())
+        .then(r => r.json())
         .then(data => {
             if (data.success) {
-                console.log('Snapshot successfully saved to Supabase:', data.url);
+                console.log('Snapshot saved:', data.url);
+                showToast('Captured! 📸', 'info');
             } else {
                 showToast('Failed to save snapshot', 'error');
             }
         })
         .catch(err => {
-            console.error('Error uploading snapshot:', err);
+            console.error('Upload error:', err);
             showToast('Error saving snapshot', 'error');
         });
     }
@@ -514,17 +528,7 @@
             );
 
             renderMemeGrid(results);
-
-            // Automatically capture the snapshot once the new image loads
-            const img = memeGrid.querySelector('img');
-            if (img) {
-                if (img.complete) {
-                    setTimeout(takeSnapshot, 100);
-                } else {
-                    img.addEventListener('load', () => setTimeout(takeSnapshot, 100));
-                }
-            }
-        }, 3500); // Update every 3.5s for a calm, stable experience
+        }, 500); // Fast updates — capture is user-triggered via Capture button
     }
 
     // ── Filter Change Handler ─────────────────────────────────
