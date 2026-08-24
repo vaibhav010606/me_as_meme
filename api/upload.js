@@ -1,14 +1,6 @@
 const { createClient } = require('@supabase/supabase-js');
 
-module.exports.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '50mb',
-    },
-  },
-};
-
-module.exports = async function handler(req, res) {
+const handler = async function(req, res) {
     if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
         console.error("Missing Supabase Environment Variables!");
         return res.status(500).json({ error: 'Server misconfiguration: Missing Supabase keys.' });
@@ -63,3 +55,13 @@ module.exports = async function handler(req, res) {
         res.status(500).json({ error: 'Internal server error' });
     }
 }
+
+handler.config = {
+  api: {
+    bodyParser: {
+      sizeLimit: '50mb',
+    },
+  },
+};
+
+module.exports = handler;
